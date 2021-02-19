@@ -206,6 +206,27 @@ paths:
           $ref: "#/responses/errorResponse"
       security:
         - medco-jwt: ["medco-genomic-annotations"]
+
+  /node/explore-statistics/query:
+    post :
+      tags:
+        - "explore statistics"
+      summary: "Queries the server to obtain the histogram of the distribution linked to the concept sent as parameter to the request."
+      operationId: "exploreStatistics"
+      parameters:
+        - $ref: "#/parameters/exploreStatisticsRequest"
+      responses:
+        200:
+          $ref: "#/responses/exploreStatisticsResponse"
+        400:
+          $ref : "#/responses/badRequestResponse"
+        404:
+          $ref : "#/responses/notFoundResponse"
+        default:
+          $ref: '#/responses/errorResponse'
+      security:
+        - medco-jwt: ["medco-explore-statistics"]
+
   /node/analysis/survival/query:
     post :
       tags:
@@ -385,6 +406,41 @@ parameters:
         - creationDate
         - updateDate
 
+  exploreStatisticsRequest:
+    in: "body"
+    description: "User public key, cohort name, modifier or concept information, interval size, minimum and maximum value of concept or modifier"
+    name: "body"
+    required: true
+    schema:
+      type: "object"
+      properties:
+        ID:
+          type: "string"
+          pattern: '^[\w:-]+$'
+        userPublicKey:
+          type: "string"
+          pattern: '^[\w=-]+$'
+        cohortName:
+          type: "string"
+          pattern: '^\w+$'
+        concept:
+          type: "string"
+          pattern: '^\/$|^((\/[^\/]+)+\/?)$'
+        numberOfBuckets:
+          type: "integer"  
+        modifier:
+          type: "object"
+          properties:
+            modifierKey:
+              type: "string"
+              pattern: '^((\/[^\/]+)+\/)$'
+            appliedPath:
+              type: "string"
+              pattern: '^((\/[^\/]+)+\/%?)$'
+          required:
+            - modifierKey
+            - appliedPath
+ 
   survivalAnalysisRequest:
     in: "body"
     description: "User public key, patient list and time codes strings for the survival analysis"
@@ -576,6 +632,19 @@ responses:
           updateDate:
             type: "string"
 
+  exploreStatisticsResponse:
+    description: "Explore statistics histogram"
+    schema:
+      type: "object"
+      properties:
+        results:
+          description: "the encrypted counts of each bucket of the histogram"
+          type: "array"
+          items:
+            type: "string"
+        unit:
+          type: "string"
+        
   survivalAnalysisResponse:
     description: "Queried survival analysis"
     schema:

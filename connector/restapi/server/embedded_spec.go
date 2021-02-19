@@ -231,6 +231,41 @@ func init() {
         }
       }
     },
+    "/node/explore-statistics/query": {
+      "post": {
+        "security": [
+          {
+            "medco-jwt": [
+              "medco-explore-statistics"
+            ]
+          }
+        ],
+        "tags": [
+          "explore statistics"
+        ],
+        "summary": "Queries the server to obtain the histogram of the distribution linked to the concept sent as parameter to the request.",
+        "operationId": "exploreStatistics",
+        "parameters": [
+          {
+            "$ref": "#/parameters/exploreStatisticsRequest"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/responses/exploreStatisticsResponse"
+          },
+          "400": {
+            "$ref": "#/responses/badRequestResponse"
+          },
+          "404": {
+            "$ref": "#/responses/notFoundResponse"
+          },
+          "default": {
+            "$ref": "#/responses/errorResponse"
+          }
+        }
+      }
+    },
     "/node/explore/cohorts": {
       "get": {
         "security": [
@@ -971,6 +1006,59 @@ func init() {
         "$ref": "#/definitions/exploreSearchModifier"
       }
     },
+    "exploreStatisticsRequest": {
+      "description": "User public key, cohort name, modifier or concept information, interval size, minimum and maximum value of concept or modifier",
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "ID": {
+            "type": "string",
+            "pattern": "^[\\w:-]+$"
+          },
+          "cohortName": {
+            "type": "string",
+            "pattern": "^\\w+$"
+          },
+          "concept": {
+            "type": "string",
+            "pattern": "^\\/$|^((\\/[^\\/]+)+\\/?)$"
+          },
+          "maxBound": {
+            "type": "number"
+          },
+          "minBound": {
+            "type": "number"
+          },
+          "modifier": {
+            "type": "object",
+            "required": [
+              "modifierKey",
+              "appliedPath"
+            ],
+            "properties": {
+              "appliedPath": {
+                "type": "string",
+                "pattern": "^((\\/[^\\/]+)+\\/%?)$"
+              },
+              "modifierKey": {
+                "type": "string",
+                "pattern": "^((\\/[^\\/]+)+\\/)$"
+              }
+            }
+          },
+          "numberOfBuckets": {
+            "type": "integer"
+          },
+          "userPublicKey": {
+            "type": "string",
+            "pattern": "^[\\w=-]+$"
+          }
+        }
+      }
+    },
     "survivalAnalysisRequest": {
       "description": "User public key, patient list and time codes strings for the survival analysis",
       "name": "body",
@@ -1160,6 +1248,24 @@ func init() {
           },
           "search": {
             "$ref": "#/definitions/exploreSearchModifier"
+          }
+        }
+      }
+    },
+    "exploreStatisticsResponse": {
+      "description": "Explore statistics histogram",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "description": "the encrypted counts of each bucket of the histogram",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unit": {
+            "type": "string"
           }
         }
       }
@@ -1673,6 +1779,130 @@ func init() {
                 },
                 "timers": {
                   "$ref": "#/definitions/timers"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad user input in request.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error response.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/node/explore-statistics/query": {
+      "post": {
+        "security": [
+          {
+            "medco-jwt": [
+              "medco-explore-statistics"
+            ]
+          }
+        ],
+        "tags": [
+          "explore statistics"
+        ],
+        "summary": "Queries the server to obtain the histogram of the distribution linked to the concept sent as parameter to the request.",
+        "operationId": "exploreStatistics",
+        "parameters": [
+          {
+            "description": "User public key, cohort name, modifier or concept information, interval size, minimum and maximum value of concept or modifier",
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "ID": {
+                  "type": "string",
+                  "pattern": "^[\\w:-]+$"
+                },
+                "cohortName": {
+                  "type": "string",
+                  "pattern": "^\\w+$"
+                },
+                "concept": {
+                  "type": "string",
+                  "pattern": "^\\/$|^((\\/[^\\/]+)+\\/?)$"
+                },
+                "maxBound": {
+                  "type": "number"
+                },
+                "minBound": {
+                  "type": "number"
+                },
+                "modifier": {
+                  "type": "object",
+                  "required": [
+                    "modifierKey",
+                    "appliedPath"
+                  ],
+                  "properties": {
+                    "appliedPath": {
+                      "type": "string",
+                      "pattern": "^((\\/[^\\/]+)+\\/%?)$"
+                    },
+                    "modifierKey": {
+                      "type": "string",
+                      "pattern": "^((\\/[^\\/]+)+\\/)$"
+                    }
+                  }
+                },
+                "numberOfBuckets": {
+                  "type": "integer"
+                },
+                "userPublicKey": {
+                  "type": "string",
+                  "pattern": "^[\\w=-]+$"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Explore statistics histogram",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "results": {
+                  "description": "the encrypted counts of each bucket of the histogram",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "unit": {
+                  "type": "string"
                 }
               }
             }
@@ -2277,6 +2507,23 @@ func init() {
         "id": {
           "type": "integer",
           "format": "int64"
+        }
+      }
+    },
+    "ExploreStatisticsParamsBodyModifier": {
+      "type": "object",
+      "required": [
+        "modifierKey",
+        "appliedPath"
+      ],
+      "properties": {
+        "appliedPath": {
+          "type": "string",
+          "pattern": "^((\\/[^\\/]+)+\\/%?)$"
+        },
+        "modifierKey": {
+          "type": "string",
+          "pattern": "^((\\/[^\\/]+)+\\/)$"
         }
       }
     },
@@ -2947,6 +3194,59 @@ func init() {
         "$ref": "#/definitions/exploreSearchModifier"
       }
     },
+    "exploreStatisticsRequest": {
+      "description": "User public key, cohort name, modifier or concept information, interval size, minimum and maximum value of concept or modifier",
+      "name": "body",
+      "in": "body",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "ID": {
+            "type": "string",
+            "pattern": "^[\\w:-]+$"
+          },
+          "cohortName": {
+            "type": "string",
+            "pattern": "^\\w+$"
+          },
+          "concept": {
+            "type": "string",
+            "pattern": "^\\/$|^((\\/[^\\/]+)+\\/?)$"
+          },
+          "maxBound": {
+            "type": "number"
+          },
+          "minBound": {
+            "type": "number"
+          },
+          "modifier": {
+            "type": "object",
+            "required": [
+              "modifierKey",
+              "appliedPath"
+            ],
+            "properties": {
+              "appliedPath": {
+                "type": "string",
+                "pattern": "^((\\/[^\\/]+)+\\/%?)$"
+              },
+              "modifierKey": {
+                "type": "string",
+                "pattern": "^((\\/[^\\/]+)+\\/)$"
+              }
+            }
+          },
+          "numberOfBuckets": {
+            "type": "integer"
+          },
+          "userPublicKey": {
+            "type": "string",
+            "pattern": "^[\\w=-]+$"
+          }
+        }
+      }
+    },
     "survivalAnalysisRequest": {
       "description": "User public key, patient list and time codes strings for the survival analysis",
       "name": "body",
@@ -3136,6 +3436,24 @@ func init() {
           },
           "search": {
             "$ref": "#/definitions/exploreSearchModifier"
+          }
+        }
+      }
+    },
+    "exploreStatisticsResponse": {
+      "description": "Explore statistics histogram",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "description": "the encrypted counts of each bucket of the histogram",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unit": {
+            "type": "string"
           }
         }
       }
