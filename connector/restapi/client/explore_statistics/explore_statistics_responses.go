@@ -244,12 +244,6 @@ type ExploreStatisticsBody struct {
 	// Pattern: ^\/$|^((\/[^\/]+)+\/?)$
 	Concept string `json:"concept,omitempty"`
 
-	// max bound
-	MaxBound float64 `json:"maxBound,omitempty"`
-
-	// min bound
-	MinBound float64 `json:"minBound,omitempty"`
-
 	// modifier
 	Modifier *ExploreStatisticsParamsBodyModifier `json:"modifier,omitempty"`
 

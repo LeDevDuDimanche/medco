@@ -1026,12 +1026,6 @@ func init() {
             "type": "string",
             "pattern": "^\\/$|^((\\/[^\\/]+)+\\/?)$"
           },
-          "maxBound": {
-            "type": "number"
-          },
-          "minBound": {
-            "type": "number"
-          },
           "modifier": {
             "type": "object",
             "required": [
@@ -1853,12 +1847,6 @@ func init() {
                 "concept": {
                   "type": "string",
                   "pattern": "^\\/$|^((\\/[^\\/]+)+\\/?)$"
-                },
-                "maxBound": {
-                  "type": "number"
-                },
-                "minBound": {
-                  "type": "number"
                 },
                 "modifier": {
                   "type": "object",
@@ -3213,12 +3201,6 @@ func init() {
           "concept": {
             "type": "string",
             "pattern": "^\\/$|^((\\/[^\\/]+)+\\/?)$"
-          },
-          "maxBound": {
-            "type": "number"
-          },
-          "minBound": {
-            "type": "number"
           },
           "modifier": {
             "type": "object",

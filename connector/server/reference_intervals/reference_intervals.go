@@ -17,7 +17,7 @@ import (
 	"github.com/ldsec/medco/connector/wrappers/i2b2"
 	"github.com/ldsec/medco/connector/wrappers/unlynx"
 
-	"github.com/ldsec/medco/connector/restapi/server/operations/survival_analysis"
+	"github.com/ldsec/medco/connector/restapi/server/operations/explore_statistics"
 )
 
 // Interval is a structure containing the lower bound and higher bound of an interval.
@@ -34,7 +34,7 @@ type Query struct {
 	QueryName     string
 	CohortName    string
 	Concept       string
-	Modifier      *survival_analysis.SurvivalAnalysisParamsBodyStartModifier //TODO export this class out of the survival package make it a common thing
+	Modifier      *explore_statistics.ExploreStatisticsParamsBodyModifier //TODO export this class out of the survival package make it a common thing
 	Intervals     []Interval
 	Result        *struct {
 		Timers    medcomodels.Timers
@@ -44,21 +44,23 @@ type Query struct {
 }
 
 // NewQuery query constructor
-func NewQuery(UserID,
-	QueryName,
+func NewQuery(
+	UserID string,
+	QueryName string,
 	UserPublicKey string,
 	CohortName string,
-	SubGroupDefinitions []*survival_analysis.SurvivalAnalysisParamsBodySubGroupDefinitionsItems0,
 	Concept string,
-	Intervals []Interval,
+	modifier *explore_statistics.ExploreStatisticsParamsBodyModifier,
+	nbBounds int,
 ) *Query {
 	res := &Query{
-		UserPublicKey: UserPublicKey,
 		UserID:        UserID,
-		QueryName:     QueryName,
+		UserPublicKey: UserPublicKey,
 		CohortName:    CohortName,
-		Intervals:     Intervals,
+		QueryName:     QueryName,
+		Intervals:     make([]Interval, nbBounds), //TODO tester dans la console golang que mettre une taille non zero print cette taille quand on fait len de ce tableau.
 		Concept:       Concept,
+		Modifier:      modifier,
 		Result: &struct {
 			Timers    medcomodels.Timers
 			EncCounts []string
@@ -87,6 +89,8 @@ func (q *Query) Execute() error {
 		return err
 	}
 	q.Result.Timers.AddTimers("", timer, timers)
+
+	//TODO build intervals from modifier
 
 	queryResults, err := RetrieveObservations(conceptCode, modifierCode, cohort)
 
@@ -232,7 +236,7 @@ func prepareArguments(
 	userID,
 	cohortName,
 	concept string,
-	modifier *survival_analysis.SurvivalAnalysisParamsBodyStartModifier,
+	modifier *explore_statistics.ExploreStatisticsParamsBodyModifier,
 ) (
 	conceptCode,
 	modifierCode string,
