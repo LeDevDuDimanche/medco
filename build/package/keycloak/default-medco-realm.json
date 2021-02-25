@@ -80,7 +80,15 @@
     } ],
     "client" : {
       "security-admin-console" : [ ],
-      "medco" : [ {
+      "medco" : [ 
+      {
+        "id" : "a4750c34-edad-4422-8707-07dd865fabcd",
+        "name" : "medco-explore-statistics",
+        "composite" : false,
+        "clientRole" : true,
+        "containerId" : "6aa5311d-383f-402d-bcf2-a1d2ac566f00",
+        "attributes" : { }
+      }, {
         "id" : "a4750c34-edad-4422-8707-07dd865f0b42",
         "name" : "medco-explore",
         "composite" : false,
@@ -414,7 +422,7 @@
     "requiredActions" : [ ],
     "realmRoles" : [ "offline_access", "uma_authorization" ],
     "clientRoles" : {
-      "medco" : [ "count_per_site", "patient_list", "count_global_obfuscated", "medco-explore", "count_per_site_shuffled", "medco-genomic-annotations", "medco-survival-analysis", "medco-network", "count_per_site_shuffled_obfuscated", "count_per_site_obfuscated", "count_global" ],
+      "medco" : [ "medco-explore-statistics", "count_per_site", "patient_list", "count_global_obfuscated", "medco-explore", "count_per_site_shuffled", "medco-genomic-annotations", "medco-survival-analysis", "medco-network", "count_per_site_shuffled_obfuscated", "count_per_site_obfuscated", "count_global" ],
       "account" : [ "manage-account", "view-profile" ]
     },
     "notBefore" : 0,

@@ -764,6 +764,27 @@ func init() {
         }
       }
     },
+    "intervalBucket": {
+      "description": "Explore statistics bucket of the histogram",
+      "type": "object",
+      "required": [
+        "encCount",
+        "lowerBound",
+        "higherBound"
+      ],
+      "properties": {
+        "encCount": {
+          "description": "The encrypted count for this bucket",
+          "type": "string"
+        },
+        "higherBound": {
+          "type": "string"
+        },
+        "lowerBound": {
+          "type": "string"
+        }
+      }
+    },
     "metadataxml": {
       "type": "object",
       "properties": {
@@ -885,7 +906,8 @@ func init() {
         "medco-network",
         "medco-explore",
         "medco-genomic-annotations",
-        "medco-survival-analysis"
+        "medco-survival-analysis",
+        "medco-explore-statistics"
       ]
     },
     "timers": {
@@ -1251,12 +1273,16 @@ func init() {
       "schema": {
         "type": "object",
         "properties": {
-          "results": {
+          "intervals": {
             "description": "the encrypted counts of each bucket of the histogram",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "object",
+              "$ref": "#/definitions/intervalBucket"
             }
+          },
+          "timers": {
+            "$ref": "#/definitions/timers"
           },
           "unit": {
             "type": "string"
@@ -1882,12 +1908,16 @@ func init() {
             "schema": {
               "type": "object",
               "properties": {
-                "results": {
+                "intervals": {
                   "description": "the encrypted counts of each bucket of the histogram",
                   "type": "array",
                   "items": {
-                    "type": "string"
+                    "type": "object",
+                    "$ref": "#/definitions/intervalBucket"
                   }
+                },
+                "timers": {
+                  "$ref": "#/definitions/timers"
                 },
                 "unit": {
                   "type": "string"
@@ -2999,6 +3029,27 @@ func init() {
         }
       }
     },
+    "intervalBucket": {
+      "description": "Explore statistics bucket of the histogram",
+      "type": "object",
+      "required": [
+        "encCount",
+        "lowerBound",
+        "higherBound"
+      ],
+      "properties": {
+        "encCount": {
+          "description": "The encrypted count for this bucket",
+          "type": "string"
+        },
+        "higherBound": {
+          "type": "string"
+        },
+        "lowerBound": {
+          "type": "string"
+        }
+      }
+    },
     "metadataxml": {
       "type": "object",
       "properties": {
@@ -3073,7 +3124,8 @@ func init() {
         "medco-network",
         "medco-explore",
         "medco-genomic-annotations",
-        "medco-survival-analysis"
+        "medco-survival-analysis",
+        "medco-explore-statistics"
       ]
     },
     "timers": {
@@ -3427,12 +3479,16 @@ func init() {
       "schema": {
         "type": "object",
         "properties": {
-          "results": {
+          "intervals": {
             "description": "the encrypted counts of each bucket of the histogram",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "object",
+              "$ref": "#/definitions/intervalBucket"
             }
+          },
+          "timers": {
+            "$ref": "#/definitions/timers"
           },
           "unit": {
             "type": "string"

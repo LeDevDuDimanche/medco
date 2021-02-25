@@ -632,18 +632,23 @@ responses:
           updateDate:
             type: "string"
 
+
+
   exploreStatisticsResponse:
     description: "Explore statistics histogram"
     schema:
       type: "object"
       properties:
-        results:
+        intervals:
           description: "the encrypted counts of each bucket of the histogram"
           type: "array"
           items:
-            type: "string"
+            type: "object"
+            $ref: "#/definitions/intervalBucket"
         unit:
           type: "string"
+        timers: 
+          $ref: "#/definitions/timers"
         
   survivalAnalysisResponse:
     description: "Queried survival analysis"
@@ -918,6 +923,7 @@ definitions:
       - medco-explore
       - medco-genomic-annotations
       - medco-survival-analysis
+      - medco-explore-statistics
 
   user:
     type: "object"
@@ -945,6 +951,19 @@ definitions:
       - samevisit
       - sameinstancenum
     default: "any"
+
+  intervalBucket:
+    description: "Explore statistics bucket of the histogram"
+    type: "object"
+    required: ["encCount", "lowerBound", "higherBound"]
+    properties:
+      encCount:
+        description: "The encrypted count for this bucket" 
+        type: "string"
+      lowerBound: 
+        type: "string"
+      higherBound:
+        type: "string"
 
   timers:
     type: "array"

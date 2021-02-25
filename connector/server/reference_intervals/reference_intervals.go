@@ -25,6 +25,7 @@ import (
 type Interval struct {
 	LowerBound  float64
 	HigherBound float64
+	EncCount    string // contains the count of subject in this interval
 }
 
 // Query holds the ID of the survival analysis, its parameters and a pointer to its results
@@ -35,11 +36,10 @@ type Query struct {
 	CohortName    string
 	Concept       string
 	Modifier      *explore_statistics.ExploreStatisticsParamsBodyModifier //TODO export this class out of the survival package make it a common thing
-	Intervals     []Interval
 	Result        *struct {
 		Timers    medcomodels.Timers
-		EncCounts []string // contains the count of subject per interval
-		//should i link encrypted counts to intervals?
+		Intervals []Interval
+		Unit      string
 	}
 }
 
@@ -51,34 +51,36 @@ func NewQuery(
 	CohortName string,
 	Concept string,
 	modifier *explore_statistics.ExploreStatisticsParamsBodyModifier,
-	nbBounds int,
-) *Query {
+	nbBounds int64,
+) (q *Query, err error) {
+
+	if nbBounds < 0 {
+		err := fmt.Errorf("no intervals specified in the parameters of the query")
+		return nil, err
+	}
+
 	res := &Query{
 		UserID:        UserID,
 		UserPublicKey: UserPublicKey,
 		CohortName:    CohortName,
 		QueryName:     QueryName,
-		Intervals:     make([]Interval, nbBounds), //TODO tester dans la console golang que mettre une taille non zero print cette taille quand on fait len de ce tableau.
 		Concept:       Concept,
 		Modifier:      modifier,
 		Result: &struct {
 			Timers    medcomodels.Timers
-			EncCounts []string
+			Intervals []Interval
+			Unit      string
 		}{}}
 
+	res.Result.Intervals = make([]Interval, nbBounds)
 	res.Result.Timers = make(map[string]time.Duration)
 
-	return res
+	return res, nil
 }
 
 // Execute runs the survival analysis query
 func (q *Query) Execute() error {
 	//TODO verify the user has the right to execute such a query.
-
-	if len(q.Intervals) == 0 {
-		err := fmt.Errorf("no intervals specified in the parameters of the query")
-		return err
-	}
 
 	encCounts := make([]string, 0)
 	timer := time.Now()
@@ -90,30 +92,31 @@ func (q *Query) Execute() error {
 	}
 	q.Result.Timers.AddTimers("", timer, timers)
 
-	//TODO build intervals from modifier
-
 	queryResults, err := RetrieveObservations(conceptCode, modifierCode, cohort)
+
+	//TODO build intervals from modifier or concept
 
 	// TODO il faut que tu t'assures d'utiliser tout le temps la même unité
 	// pour cela il faudrait que l'utilisateur ait le choix de l'unité qui sera utilisée dans l'affichage distribution.
 	// voir https://community.i2b2.org/wiki/display/DevForum/Metadata+XML+for+Medication+Modifiers
+	//TODO Une fois que tu connais l'unité il faut remplir le champs Unit de la requête de réponse.
 
 	if err != nil {
 		return err
 	}
 
 	waitGroup := &sync.WaitGroup{}
-	waitGroup.Add(len(q.Intervals))
+	waitGroup.Add(len(q.Result.Intervals))
 	channels := make([]chan struct {
 		encCount *string
 		medcomodels.Timers
-	}, len(q.Intervals))
-	errChan := make(chan error, len(q.Intervals))
+	}, len(q.Result.Intervals))
+	errChan := make(chan error, len(q.Result.Intervals))
 	signal := make(chan struct{})
 
 	//TODO dans le futur il faudra que tu puisses reproduire les intervalles de références. Il faudra que tu sauvegardes des informations dans la db medco pour ça.
 
-	for i, interval := range q.Intervals {
+	for i, interval := range q.Result.Intervals {
 		if interval.LowerBound >= interval.HigherBound {
 			err := fmt.Errorf("the lower bound of the interval is greater than the higher bound: %f >= %f", interval.LowerBound, interval.HigherBound)
 			errChan <- err
@@ -132,7 +135,7 @@ func (q *Query) Execute() error {
 			keptResults := make([]QueryResult, 0)
 
 			for _, queryResult := range queryResults {
-				if queryResult.numericValue >= interval.LowerBound && queryResult.numericValue < interval.HigherBound {
+				if queryResult.NumericValue >= interval.LowerBound && queryResult.NumericValue < interval.HigherBound {
 					keptResults = append(keptResults, queryResult)
 				}
 			}
@@ -176,7 +179,13 @@ func (q *Query) Execute() error {
 	// aggregate and key switch locally encrypted results
 	timer = time.Now()
 	var aggregationTimers medcomodels.Timers
-	q.Result.EncCounts, aggregationTimers, err = unlynx.AggregateAndKeySwitchValues(q.QueryName+"_AGG_AND_KEYSWITCH", encCounts, q.UserPublicKey)
+	var aggValues []string
+	aggValues, aggregationTimers, err = unlynx.AggregateAndKeySwitchValues(q.QueryName+"_AGG_AND_KEYSWITCH", encCounts, q.UserPublicKey)
+
+	//assign the encrypted count to the matching interval
+	for i, interval := range q.Result.Intervals {
+		interval.EncCount = aggValues[i]
+	}
 
 	q.Result.Timers.AddTimers("medco-connector-aggregate-and-key-switch", timer, aggregationTimers)
 	if err != nil {

@@ -9,9 +9,9 @@ import (
 
 //QueryResult contains the information about a row that comes out from the query executed in RetrievePatients.
 type QueryResult struct {
-	numericValue  float64
-	units         string
-	patientNumber int64
+	NumericValue  float64
+	Units         string
+	PatientNumber int64
 }
 
 //RetrieveObservations returns the numerical values that correspond to the concept or modifier passed as argument for the specified cohort.
@@ -37,15 +37,15 @@ func RetrieveObservations(conceptCode string, modifierCode string, patients []in
 
 		var queryResult QueryResult
 
-		queryResult.units = *units
+		queryResult.Units = *units
 
-		queryResult.numericValue, err = strconv.ParseFloat(*numericValue, 64)
+		queryResult.NumericValue, err = strconv.ParseFloat(*numericValue, 64)
 		if err != nil {
 			err = fmt.Errorf("Error while converting numerical value %s for the (concept, modifier) with code (%s, %s)", *numericValue, conceptCode, modifierCode)
 			return
 		}
 
-		queryResult.patientNumber, err = strconv.ParseInt(*patientNb, 10, 64)
+		queryResult.PatientNumber, err = strconv.ParseInt(*patientNb, 10, 64)
 		if err != nil {
 			err = fmt.Errorf("Error while parsing the patient identifier %s for the (concept, modifier) with code (%s, %s)", *patientNb, conceptCode, modifierCode)
 			return
@@ -61,6 +61,7 @@ func RetrieveObservations(conceptCode string, modifierCode string, patients []in
 /*
 	* This query will return the numerical values from all observations where
 	* the patient_num is contained within the list passed as argument (the list is in principle a list of patient from a specific cohort).
+
 	TODO In the same way I gathered the schema and table in which the ontology is contained, gather the schema in which observations are contained.
 	For the moment I hardcode the table and schema.
 

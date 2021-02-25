@@ -8,12 +8,15 @@ package explore_statistics
 import (
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
 	"github.com/go-openapi/validate"
+
+	"github.com/ldsec/medco/connector/restapi/models"
 )
 
 // ExploreStatisticsReader is a Reader for the ExploreStatistics structure.
@@ -443,7 +446,10 @@ swagger:model ExploreStatisticsOKBody
 type ExploreStatisticsOKBody struct {
 
 	// the encrypted counts of each bucket of the histogram
-	Results []string `json:"results"`
+	Intervals []*models.IntervalBucket `json:"intervals"`
+
+	// timers
+	Timers models.Timers `json:"timers"`
 
 	// unit
 	Unit string `json:"unit,omitempty"`
@@ -451,6 +457,60 @@ type ExploreStatisticsOKBody struct {
 
 // Validate validates this explore statistics o k body
 func (o *ExploreStatisticsOKBody) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateIntervals(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := o.validateTimers(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *ExploreStatisticsOKBody) validateIntervals(formats strfmt.Registry) error {
+
+	if swag.IsZero(o.Intervals) { // not required
+		return nil
+	}
+
+	for i := 0; i < len(o.Intervals); i++ {
+		if swag.IsZero(o.Intervals[i]) { // not required
+			continue
+		}
+
+		if o.Intervals[i] != nil {
+			if err := o.Intervals[i].Validate(formats); err != nil {
+				if ve, ok := err.(*errors.Validation); ok {
+					return ve.ValidateName("exploreStatisticsOK" + "." + "intervals" + "." + strconv.Itoa(i))
+				}
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (o *ExploreStatisticsOKBody) validateTimers(formats strfmt.Registry) error {
+
+	if swag.IsZero(o.Timers) { // not required
+		return nil
+	}
+
+	if err := o.Timers.Validate(formats); err != nil {
+		if ve, ok := err.(*errors.Validation); ok {
+			return ve.ValidateName("exploreStatisticsOK" + "." + "timers")
+		}
+		return err
+	}
+
 	return nil
 }
 
