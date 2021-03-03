@@ -3,7 +3,6 @@ package survivalserver
 import (
 	"fmt"
 	"strconv"
-	"strings"
 
 	medcomodels "github.com/ldsec/medco/connector/models"
 
@@ -15,11 +14,7 @@ import (
 // buildTimePoints execute a SQL query that returns event counts per time point, for given input patient set, start and end  concept codes and modifiers
 func buildTimePoints(patientList []int64, startConceptCode string, startConceptModifier string, endConceptCode string, endConceptModifier string, timeLimit int) (timePoints medcomodels.TimePoints, err error) {
 
-	pList := make([]string, len(patientList))
-	for i, pNum := range patientList {
-		pList[i] = strconv.FormatInt(pNum, 10)
-	}
-	patients := "{" + strings.Join(pList, ",") + "}"
+	patients := utilserver.ConvertIntListToString(patientList)
 	logrus.Debugf("selecting start concept code %s, start concept modifier %s, patients list %s, end concept code %s, end concept modifier %s, time limit %d", startConceptCode, startConceptModifier, patients, endConceptCode, endConceptModifier, timeLimit)
 	logrus.Debugf("SQL: %s", sql6)
 	rows, err := utilserver.I2B2DBConnection.Query(sql6, startConceptCode, startConceptModifier, patients, endConceptCode, endConceptModifier, timeLimit)

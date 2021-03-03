@@ -16,7 +16,8 @@ type QueryResult struct {
 
 //RetrieveObservations returns the numerical values that correspond to the concept or modifier passed as argument for the specified cohort.
 func RetrieveObservations(conceptCode string, modifierCode string, patients []int64) (queryResults []QueryResult, err error) {
-	rows, err := utilserver.I2B2DBConnection.Query(sql, conceptCode, modifierCode, patients)
+	strPatientList := utilserver.ConvertIntListToString(patients)
+	rows, err := utilserver.I2B2DBConnection.Query(sql, conceptCode, modifierCode, strPatientList)
 	if err != nil {
 		err = fmt.Errorf("while execution SQL query: %s", err.Error())
 		return
@@ -71,7 +72,7 @@ func RetrieveObservations(conceptCode string, modifierCode string, patients []in
 */
 
 const sql string = `
-SELECT nval_num, patient_num, units_cd FROM i2b2demodata.observation_fact
+SELECT nval_num, patient_num, units_cd FROM i2b2demodata_i2b2.observation_fact
 	WHERE
 		concept_cd = $1 AND modifier_cd = $2 AND
 		valtype_cd = 'N' AND tval_char = 'E' AND nval_num is not null AND units_cd is not null AND units_cd != '@'

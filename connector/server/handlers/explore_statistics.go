@@ -76,7 +76,7 @@ func ExploreStatisticsHandler(param explore_statistics.ExploreStatisticsParams, 
 	//parse timers
 	modelsTimers := results.Timers.TimersToAPIModel()
 
-	apiIntervals := make([]*models.IntervalBucket, len(results.Intervals))
+	apiIntervals := make([]*models.IntervalBucket, 0)
 
 	for _, bucket := range results.Intervals {
 		higherBound := strconv.FormatFloat(bucket.HigherBound, 'f', 5, 64)

@@ -38,7 +38,7 @@ type Query struct {
 	Modifier      *explore_statistics.ExploreStatisticsParamsBodyModifier //TODO export this class out of the survival package make it a common thing
 	Result        *struct {
 		Timers    medcomodels.Timers
-		Intervals []Interval
+		Intervals []*Interval
 		Unit      string
 	}
 }
@@ -54,8 +54,8 @@ func NewQuery(
 	nbBounds int64,
 ) (q *Query, err error) {
 
-	if nbBounds < 0 {
-		err := fmt.Errorf("no intervals specified in the parameters of the query")
+	if nbBounds < 1 {
+		err := fmt.Errorf("The number of intervals specified in the parameters must be greater than one")
 		return nil, err
 	}
 
@@ -68,11 +68,11 @@ func NewQuery(
 		Modifier:      modifier,
 		Result: &struct {
 			Timers    medcomodels.Timers
-			Intervals []Interval
+			Intervals []*Interval
 			Unit      string
 		}{}}
 
-	res.Result.Intervals = make([]Interval, nbBounds)
+	res.Result.Intervals = make([]*Interval, nbBounds)
 	res.Result.Timers = make(map[string]time.Duration)
 
 	return res, nil
@@ -82,7 +82,6 @@ func NewQuery(
 func (q *Query) Execute() error {
 	//TODO verify the user has the right to execute such a query.
 
-	encCounts := make([]string, 0)
 	timer := time.Now()
 
 	conceptCode, modifierCode, cohort, timers, err := prepareArguments(q.UserID, q.CohortName, q.Concept, q.Modifier)
@@ -94,31 +93,76 @@ func (q *Query) Execute() error {
 
 	queryResults, err := RetrieveObservations(conceptCode, modifierCode, cohort)
 
-	//TODO build intervals from modifier or concept
-
-	// TODO il faut que tu t'assures d'utiliser tout le temps la même unité
-	// pour cela il faudrait que l'utilisateur ait le choix de l'unité qui sera utilisée dans l'affichage distribution.
-	// voir https://community.i2b2.org/wiki/display/DevForum/Metadata+XML+for+Medication+Modifiers
-	//TODO Une fois que tu connais l'unité il faut remplir le champs Unit de la requête de réponse.
-
 	if err != nil {
 		return err
 	}
 
+	logrus.Info("Query results contains ", len(queryResults), " records")
+
+	//TODO later on when we will exchange the minimum and maximum value of a concept between the servers we will change the way buckets are defined.
+	if len(queryResults) < 2 {
+		err = fmt.Errorf("Not enough concepts present in order to define buckets")
+		return err
+	}
+
+	// TODO il faut que tu t'assures d'utiliser tout le temps la même unité. Ici tu pourrais convertir tout dans la même unité à partir des informations
+	// dans metadataXML. Pour l'instant on fait l'hypothèse que tout est dans la même unité.
+	// voir https://community.i2b2.org/wiki/display/DevForum/Metadata+XML+for+Medication+Modifiers
+
+	//get the minimum and maximum value of the concepts
+	var minResult QueryResult = queryResults[0]
+	var maxResult QueryResult = queryResults[0]
+	for _, r := range queryResults {
+		if r.NumericValue < minResult.NumericValue {
+			minResult = r
+		}
+		if r.NumericValue > maxResult.NumericValue {
+			maxResult = r
+		}
+	}
+
+	logrus.Info("Min result ", minResult.NumericValue, " max value ", maxResult.NumericValue)
+
+	//from the minimum and maximum value of the select concept we determine the boundaries of the different buckets.
+	step := (maxResult.NumericValue - minResult.NumericValue) / float64(len(q.Result.Intervals))
+	logrus.Info("Steps equals ", step)
+
+	//TODO fix the fact that changing the value of LowerBound and HigherBound doesnt last throughout time.
+	current := minResult.NumericValue
+	for i := 0; i < len(q.Result.Intervals); i++ {
+		q.Result.Intervals[i] = &Interval{}
+		interval := q.Result.Intervals[i]
+		logrus.Info("Setting interval bounds. Before ", interval.LowerBound, interval.HigherBound, " After ", current, current+step, step)
+		interval.LowerBound = current
+		interval.HigherBound = current + step
+
+		current += step
+	}
+
+	//TODO delete the following
+	for _, i := range q.Result.Intervals {
+		logrus.Info("Post interval bounds setup ", i.LowerBound, i.HigherBound)
+	}
+
+	/* In the following lines of code we group the query results in different buckets depending on their numerical values. We count the number of concepts
+	 * that belong to the differents intervals and cypher this value with the cothority key.
+	 */
+
 	waitGroup := &sync.WaitGroup{}
 	waitGroup.Add(len(q.Result.Intervals))
+
 	channels := make([]chan struct {
 		encCount *string
 		medcomodels.Timers
 	}, len(q.Result.Intervals))
+
 	errChan := make(chan error, len(q.Result.Intervals))
 	signal := make(chan struct{})
 
 	//TODO dans le futur il faudra que tu puisses reproduire les intervalles de références. Il faudra que tu sauvegardes des informations dans la db medco pour ça.
-
 	for i, interval := range q.Result.Intervals {
 		if interval.LowerBound >= interval.HigherBound {
-			err := fmt.Errorf("the lower bound of the interval is greater than the higher bound: %f >= %f", interval.LowerBound, interval.HigherBound)
+			err := fmt.Errorf("the lower bound of the interval #%d is greater than the higher bound: %f >= %f", i, interval.LowerBound, interval.HigherBound)
 			errChan <- err
 			break
 		}
@@ -132,17 +176,25 @@ func (q *Query) Execute() error {
 			defer waitGroup.Done()
 			timers := medcomodels.NewTimers()
 
-			keptResults := make([]QueryResult, 0)
+			count := 0
 
+			//counting the number of numerical values that belong to the [lowerbound, higherbound[ interval.
 			for _, queryResult := range queryResults {
-				if queryResult.NumericValue >= interval.LowerBound && queryResult.NumericValue < interval.HigherBound {
-					keptResults = append(keptResults, queryResult)
+				isLastInterval := maxResult.NumericValue == interval.HigherBound
+				smallerThanHigherBound :=
+					(isLastInterval && queryResult.NumericValue <= interval.HigherBound) ||
+						(!isLastInterval && queryResult.NumericValue < interval.HigherBound)
+
+				if queryResult.NumericValue >= interval.LowerBound && smallerThanHigherBound {
+					count++
 				}
 			}
 
 			timer = time.Now()
 
-			encCount, err := unlynx.EncryptWithCothorityKey(int64(len(keptResults)))
+			logrus.Info("Count for bucket [", interval.LowerBound, ", ", interval.HigherBound, "] is ", count)
+
+			encCount, err := unlynx.EncryptWithCothorityKey(int64(count))
 			timers.AddTimers(fmt.Sprintf("medco-connector-encrypt-interval-count-group%d", i), timer, nil)
 			if err != nil {
 				err = fmt.Errorf("while encrypting the count of an interval of the future reference interval: %s", err.Error())
@@ -154,7 +206,7 @@ func (q *Query) Execute() error {
 				encCount *string
 				medcomodels.Timers
 			}{&encCount, timers}
-		}(i, &interval)
+		}(i, interval)
 
 	}
 	go func() {
@@ -169,6 +221,7 @@ func (q *Query) Execute() error {
 		break
 	}
 
+	encCounts := make([]string, 0)
 	for _, channel := range channels {
 		chanResult := <-channel
 
@@ -176,11 +229,14 @@ func (q *Query) Execute() error {
 		q.Result.Timers.AddTimers("", timer, chanResult.Timers)
 	}
 
-	// aggregate and key switch locally encrypted results
+	// aggregate and key switch locally encrypted counts of each bucket
 	timer = time.Now()
 	var aggregationTimers medcomodels.Timers
 	var aggValues []string
-	aggValues, aggregationTimers, err = unlynx.AggregateAndKeySwitchValues(q.QueryName+"_AGG_AND_KEYSWITCH", encCounts, q.UserPublicKey)
+
+	qName := q.QueryName + "_AGG_AND_KEYSWITCH"
+	logrus.Info("Launching the encrypted aggregation ", len(encCounts), " with name ", qName)
+	aggValues, aggregationTimers, err = unlynx.AggregateAndKeySwitchValues(qName, encCounts, q.UserPublicKey)
 
 	//assign the encrypted count to the matching interval
 	for i, interval := range q.Result.Intervals {
@@ -273,25 +329,24 @@ func prepareArguments(
 		err = fmt.Errorf("while connecting to clear project database: %s", err.Error())
 		return
 	}
+
 	conceptCode, err = getCode(concept)
 	if err != nil {
-		err = fmt.Errorf("while retrieving start concept code: %s", err.Error())
+		err = fmt.Errorf("while retrieving concept code: %s", err.Error())
 		return
 	}
+
 	if modifier == nil {
 		modifierCode = "@"
 	} else {
 		modifierCode, err = getModifierCode(*modifier.ModifierKey, *modifier.AppliedPath)
 	}
+
 	if err != nil {
-		err = fmt.Errorf("while retrieving start modifier code: %s", err.Error())
+		err = fmt.Errorf("while retrieving modifier code: %s", err.Error())
 		return
 	}
 
-	if err != nil {
-		err = fmt.Errorf("while retrieving end modifier code: %s", err.Error())
-		return
-	}
 	logrus.Info("got concept and modifier codes")
 	return
 }
