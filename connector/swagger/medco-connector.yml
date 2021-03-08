@@ -952,8 +952,22 @@ definitions:
       - sameinstancenum
     default: "any"
 
+  clearInterval:
+    description: "Explore statistics encrypted bucket of the histogram"
+    type: "object"
+    required: ["count", "lowerBound", "higherBound"]
+    properties:
+      count:
+        description: "The encrypted count for this bucket" 
+        type: "integer"
+        format: "int64"
+      lowerBound: 
+        type: "string"
+      higherBound:
+        type: "string"
+
   intervalBucket:
-    description: "Explore statistics bucket of the histogram"
+    description: "Explore statistics encrypted bucket of the histogram"
     type: "object"
     required: ["encCount", "lowerBound", "higherBound"]
     properties:

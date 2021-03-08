@@ -12,14 +12,14 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-// IntervalBucket Explore statistics encrypted bucket of the histogram
+// ClearInterval Explore statistics encrypted bucket of the histogram
 //
-// swagger:model intervalBucket
-type IntervalBucket struct {
+// swagger:model clearInterval
+type ClearInterval struct {
 
 	// The encrypted count for this bucket
 	// Required: true
-	EncCount *string `json:"encCount"`
+	Count *int64 `json:"count"`
 
 	// higher bound
 	// Required: true
@@ -30,11 +30,11 @@ type IntervalBucket struct {
 	LowerBound *string `json:"lowerBound"`
 }
 
-// Validate validates this interval bucket
-func (m *IntervalBucket) Validate(formats strfmt.Registry) error {
+// Validate validates this clear interval
+func (m *ClearInterval) Validate(formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.validateEncCount(formats); err != nil {
+	if err := m.validateCount(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -52,16 +52,16 @@ func (m *IntervalBucket) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *IntervalBucket) validateEncCount(formats strfmt.Registry) error {
+func (m *ClearInterval) validateCount(formats strfmt.Registry) error {
 
-	if err := validate.Required("encCount", "body", m.EncCount); err != nil {
+	if err := validate.Required("count", "body", m.Count); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (m *IntervalBucket) validateHigherBound(formats strfmt.Registry) error {
+func (m *ClearInterval) validateHigherBound(formats strfmt.Registry) error {
 
 	if err := validate.Required("higherBound", "body", m.HigherBound); err != nil {
 		return err
@@ -70,7 +70,7 @@ func (m *IntervalBucket) validateHigherBound(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *IntervalBucket) validateLowerBound(formats strfmt.Registry) error {
+func (m *ClearInterval) validateLowerBound(formats strfmt.Registry) error {
 
 	if err := validate.Required("lowerBound", "body", m.LowerBound); err != nil {
 		return err
@@ -80,7 +80,7 @@ func (m *IntervalBucket) validateLowerBound(formats strfmt.Registry) error {
 }
 
 // MarshalBinary interface implementation
-func (m *IntervalBucket) MarshalBinary() ([]byte, error) {
+func (m *ClearInterval) MarshalBinary() ([]byte, error) {
 	if m == nil {
 		return nil, nil
 	}
@@ -88,8 +88,8 @@ func (m *IntervalBucket) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary interface implementation
-func (m *IntervalBucket) UnmarshalBinary(b []byte) error {
-	var res IntervalBucket
+func (m *ClearInterval) UnmarshalBinary(b []byte) error {
+	var res ClearInterval
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}

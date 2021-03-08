@@ -1,0 +1,365 @@
+package explorestatisticsclient
+
+import (
+	"fmt"
+	"sort"
+	"strconv"
+	"sync"
+	"time"
+
+	medcoclient "github.com/ldsec/medco/connector/client"
+	medcomodels "github.com/ldsec/medco/connector/models"
+
+	"github.com/ldsec/medco/connector/restapi/client/explore_statistics"
+	"github.com/ldsec/medco/connector/restapi/models"
+	utilclient "github.com/ldsec/medco/connector/util/client"
+	"github.com/sirupsen/logrus"
+)
+
+// ClientResultElement holds the information for the CLI whole susrvival analysis loop
+type ClientResultElement struct {
+	ClearTimePoint     string
+	EncEventOfInterest string
+	EncCensoringEvent  string
+}
+
+// ExecuteClientExploreStatistics creates an explore statistics form parameters, and makes a call to the API to executes this query
+func ExecuteClientExploreStatistics(token, username, password, conceptItem, cohortName string, nbBuckets int64, disableTLSCheck bool) (err error) {
+
+	err = inputValidation(cohortName, conceptItem)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+
+	//initialize objects and channels
+	clientTimers := medcomodels.NewTimers()
+	var accessToken string
+	tokenChan := make(chan string, 1)
+	errChan := make(chan error)
+	signal := make(chan struct{})
+	wait := &sync.WaitGroup{}
+	wait.Add(1)
+	go func() {
+		wait.Wait()
+		signal <- struct{}{}
+	}()
+
+	// --- get token
+	logrus.Info("requesting access token")
+	go func() {
+		defer wait.Done()
+		accessToken, err := utilclient.RetrieveOrGetNewAccessToken(token, username, password, disableTLSCheck)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		tokenChan <- accessToken
+		logrus.Info("access token received")
+		logrus.Tracef("token %s", accessToken)
+		return
+
+	}()
+
+	var parameters *Parameters
+
+	select {
+	case err = <-errChan:
+		logrus.Error(err)
+		return
+	case <-time.After(time.Duration(utilclient.TokenTimeoutSeconds) * time.Second):
+		err = fmt.Errorf("timeout %d seconds", utilclient.TokenTimeoutSeconds)
+		logrus.Error(err)
+		return
+
+	case <-signal:
+		accessToken = <-tokenChan
+		var panel []*models.PanelItemsItems0
+		panel, err = medcoclient.ParseQueryItem(conceptItem)
+		if err != nil {
+			logrus.Error("while parsing start item: ", err.Error())
+			return
+		}
+
+		err = panelValidation(panel)
+		if err != nil {
+			logrus.Error("while validating start item", err)
+			return
+		}
+		concept := *(panel[0].QueryTerm)
+
+		if err != nil {
+			logrus.Error("while validating start item", err)
+			return
+		}
+		var mod *modifier
+		if startMod := panel[0].Modifier; startMod != nil {
+			mod = &modifier{
+				ModifierKey: *startMod.ModifierKey,
+				AppliedPath: *startMod.AppliedPath,
+			}
+		}
+
+		parameters = &Parameters{
+			cohortName,
+			concept,
+			mod,
+			nbBuckets,
+		}
+	}
+
+	// --- execute query
+	timer := time.Now()
+	logrus.Info("executing query")
+	results, userPrivateKey, err := executeQuery(accessToken, parameters, disableTLSCheck)
+	if err != nil {
+		err = fmt.Errorf("while executing explore statistics results: %s", err.Error())
+		logrus.Error(err)
+		return
+	}
+	clientTimers.AddTimers("medco-connector-explore-statistics-query-remote-execution", timer, nil)
+	logrus.Info("query executed")
+	logrus.Tracef("encrypted results: %+v", results)
+	logrus.Tracef("timers: %v", results[0])
+
+	// --- decrypt result
+	timer = time.Now()
+	logrus.Info("decrypting results")
+	clearResults := make([]*ClearResults, len(results))
+	for idx, encryptedResults := range results {
+		clearResults[idx], err = encryptedResults.Decrypt(userPrivateKey)
+		if err != nil {
+			err = fmt.Errorf("while decrypting explore statistics results: %s", err.Error())
+			logrus.Error(err)
+			return
+		}
+	}
+	clientTimers.AddTimers("medco-connector-decryptions", timer, nil)
+	logrus.Info("results decrypted")
+	logrus.Tracef("clear results: %+v", clearResults)
+
+	// --- printing results
+	printResults(clearResults, timers, clientTimers, parameters.TimeResolution, resultFile, timerFile)
+
+	logrus.Info("Operation completed")
+	return
+
+}
+
+func executeQuery(accessToken string, parameters *Parameters, disableTLSCheck bool) (results []EncryptedResults, userPrivateKey string, err error) {
+	errChan := make(chan error)
+	resultChan := make(chan struct {
+		Results []NodeResult
+	})
+	var APIModifier *explore_statistics.ExploreStatisticsParamsBodyModifier
+
+	if mod := parameters.Modifier; mod != nil {
+		logrus.Debug("start modifier provided")
+		APIModifier = &explore_statistics.ExploreStatisticsParamsBodyModifier{
+			ModifierKey: new(string),
+			AppliedPath: new(string),
+		}
+		*APIModifier.ModifierKey = mod.ModifierKey
+		*APIModifier.AppliedPath = mod.AppliedPath
+	}
+
+	query, err := NewExploreStatisticsQuery(
+		accessToken,
+		parameters.CohortName,
+		parameters.nbBuckets,
+		parameters.ConceptPath,
+		APIModifier,
+		disableTLSCheck,
+	)
+	userPrivateKey = query.userPrivateKey
+	if err != nil {
+		return
+	}
+
+	resTimeout := time.After(time.Duration(utilclient.ExploreStatisticsTimeoutSeconds) * time.Second)
+	resultTicks := time.Tick(time.Duration(utilclient.WaitTickSeconds) * time.Second)
+	go func() {
+		results, err := query.Execute()
+		if err != nil {
+			logrus.Error(err)
+			errChan <- err
+			return
+		}
+		resultChan <- struct {
+			Results []NodeResult
+		}{Results: results}
+		return
+
+	}()
+
+	tickTime := 0
+resLoop:
+	for {
+		select {
+		case <-resTimeout:
+			err = fmt.Errorf("Timeout %d", utilclient.ExploreStatisticsTimeoutSeconds)
+			return
+		case err = <-errChan:
+			logrus.Error(err)
+			return
+		case res := <-resultChan:
+			results = res.Results
+			break resLoop
+		case <-resultTicks:
+			tickTime += int(utilclient.WaitTickSeconds)
+			logrus.Infof("waiting for response (%d seconds)", tickTime)
+		}
+	}
+
+	return
+
+}
+
+func printResults(clearResults []ClearResults, timers []medcomodels.Timers, clientTimers medcomodels.Timers, timeResolution, resultFile, timerFile string) (err error) {
+	logrus.Info("printing results")
+	csv, err := utilclient.NewCSV(resultFile)
+	if err != nil {
+		err = fmt.Errorf("while creating CSV file handler: %s", err)
+		logrus.Error(err)
+		return
+	}
+	err = csv.Write([]string{"time_granularity", "node_index", "group_id", "initial_count", "time_point", "event_of_interest_count", "censoring_event_count"})
+	if err != nil {
+		err = fmt.Errorf("while writing result headers:%s", err.Error())
+		logrus.Error(err)
+		return
+	}
+	for nodeIdx := range clearResults {
+		sort.Sort(clearResults[nodeIdx])
+		for groupIdx := range clearResults[nodeIdx] {
+
+			sort.Sort(clearResults[nodeIdx][groupIdx].TimePoints)
+			var group = clearResults[nodeIdx][groupIdx]
+			for _, timePoint := range group.TimePoints {
+				csv.Write([]string{
+					timeResolution,
+					strconv.Itoa(nodeIdx),
+					group.GroupID,
+					strconv.FormatInt(group.InitialCount, 10),
+					strconv.Itoa(timePoint.Time),
+					strconv.FormatInt(timePoint.Events.EventsOfInterest, 10),
+					strconv.FormatInt(timePoint.Events.CensoringEvents, 10),
+				})
+				if err != nil {
+					err = fmt.Errorf("while writing a record: %s", err.Error())
+					logrus.Error(err)
+					return
+				}
+			}
+
+		}
+
+	}
+	err = csv.Flush()
+	if err != nil {
+		err = fmt.Errorf("while flushing buffer to result file: %s", err.Error())
+		logrus.Error(err)
+		return
+	}
+
+	err = csv.Close()
+	if err != nil {
+		err = fmt.Errorf("while closing result file: %s", err.Error())
+		logrus.Error(err)
+		return
+	}
+	logrus.Info("results printed")
+
+	// print timers
+	logrus.Info("dumping timers")
+	dumpCSV, err := utilclient.NewCSV(timerFile)
+	if err != nil {
+		err = fmt.Errorf("while creating CSV file handler: %s", err)
+		logrus.Error(err)
+		return
+	}
+	dumpCSV.Write([]string{"node_index", "timer_description", "duration_milliseconds"})
+	if err != nil {
+		err = fmt.Errorf("while writing headers for timer file: %s", err)
+		logrus.Error(err)
+		return
+	}
+	// each remote time profilings
+	for nodeIdx, nodeTimers := range timers {
+		sortedTimers := nodeTimers.SortTimers()
+		for _, duration := range sortedTimers {
+			dumpCSV.Write([]string{
+				strconv.Itoa(nodeIdx),
+				duration[0],
+				duration[1],
+			})
+			if err != nil {
+				err = fmt.Errorf("while writing record for timer file: %s", err)
+				logrus.Error(err)
+				return
+			}
+		}
+
+	}
+	// and local
+	localSortedTimers := clientTimers.SortTimers()
+	for _, duration := range localSortedTimers {
+		dumpCSV.Write([]string{
+			"client",
+			duration[0],
+			duration[1],
+		})
+		if err != nil {
+			err = fmt.Errorf("while writing record for timer file: %s", err)
+			logrus.Error(err)
+			return
+		}
+	}
+
+	err = dumpCSV.Flush()
+	if err != nil {
+		err = fmt.Errorf("while flushing timer file: %s", err)
+		logrus.Error(err)
+		return
+	}
+	logrus.Info()
+	err = dumpCSV.Close()
+	if err != nil {
+		err = fmt.Errorf("while closing timer file: %s", err)
+		logrus.Error(err)
+		return
+	}
+
+	logrus.Info("timers dumped")
+	return
+
+}
+
+func inputValidation(cohortName, concept string) error {
+	if cohortName == "" {
+		return fmt.Errorf("Cohort name -c is not set")
+	}
+	if concept == "" {
+		return fmt.Errorf("Start concept path -s is not set")
+	}
+
+	return nil
+}
+
+func panelValidation(panel []*models.PanelItemsItems0) (err error) {
+	if len(panel) == 0 {
+		err = fmt.Errorf("panels are empty. Was the start item string empry ?")
+		logrus.Error(err)
+		return
+	}
+	if len(panel) > 1 {
+		err = fmt.Errorf("multiple items retrieved from the item string. Was a file provided ? Only clear concept should be used")
+		logrus.Error(err)
+		return
+	}
+	if *(panel[0].Encrypted) {
+		err = fmt.Errorf("encrypted concept found, only clear concept should be used")
+		logrus.Error(err)
+	}
+	return
+}

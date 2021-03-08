@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli"
 
 	exploreclient "github.com/ldsec/medco/connector/client/explore"
+	explorestatisticsclient "github.com/ldsec/medco/connector/client/explorestatistics"
 	querytoolsclient "github.com/ldsec/medco/connector/client/querytools"
 	survivalclient "github.com/ldsec/medco/connector/client/survivalanalysis"
 )
@@ -165,6 +166,24 @@ func main() {
 
 	// --- app commands
 	cliApp.Commands = []cli.Command{
+		{
+			Name:      "explore-stats",
+			Aliases:   []string{"exp-s"},
+			Usage:     "Get the histogram of the number of observations about a concept (or modifier) in the context of the selected cohort",
+			ArgsUsage: "conceptPath cohortName nbBuckets",
+			Action: func(c *cli.Context) error {
+				return explorestatisticsclient.ExecuteClientExploreStatistics(
+					c.GlobalString("token"),
+					c.GlobalString("user"),
+					c.GlobalString("password"),
+					c.Args().Get(0),
+					c.Args().Get(1),
+					c.Int64("nbBuckets"),
+					c.GlobalBool("disableTLSCheck"),
+				)
+			},
+		},
+
 		{
 			Name:      "concept-children",
 			Aliases:   []string{"con-c"},

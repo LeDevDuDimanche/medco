@@ -135,6 +135,11 @@ function timing() { echo "query clr::/E2ETEST/SPHNv2020.1/DeathStatus/ OR clr::/
 timingResultNonZeroExpected="$(printf -- "count\n165\n165\n165")"
 timingResultZeroExpected="$(printf -- "count\n0\n0\n0")"
 
+testStats1 () {
+  concept="/E2ETEST/e2etest/1/"
+  docker-compose -f docker-compose.tools.yml run medco-cli-client --user $USERNAME --password $PASSWORD --o /data/result.csv explore-stats "${concept}"
+  result="$(cat ../result.csv)"
+}
 
 test1 () {
   docker-compose -f docker-compose.tools.yml run medco-cli-client --user $USERNAME --password $PASSWORD --o /data/result.csv $1 $2

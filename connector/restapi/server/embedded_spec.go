@@ -590,6 +590,28 @@ func init() {
         }
       }
     },
+    "clearInterval": {
+      "description": "Explore statistics encrypted bucket of the histogram",
+      "type": "object",
+      "required": [
+        "count",
+        "lowerBound",
+        "higherBound"
+      ],
+      "properties": {
+        "count": {
+          "description": "The encrypted count for this bucket",
+          "type": "integer",
+          "format": "int64"
+        },
+        "higherBound": {
+          "type": "string"
+        },
+        "lowerBound": {
+          "type": "string"
+        }
+      }
+    },
     "exploreQuery": {
       "description": "MedCo-Explore query",
       "properties": {
@@ -765,7 +787,7 @@ func init() {
       }
     },
     "intervalBucket": {
-      "description": "Explore statistics bucket of the histogram",
+      "description": "Explore statistics encrypted bucket of the histogram",
       "type": "object",
       "required": [
         "encCount",
@@ -2855,6 +2877,28 @@ func init() {
         }
       }
     },
+    "clearInterval": {
+      "description": "Explore statistics encrypted bucket of the histogram",
+      "type": "object",
+      "required": [
+        "count",
+        "lowerBound",
+        "higherBound"
+      ],
+      "properties": {
+        "count": {
+          "description": "The encrypted count for this bucket",
+          "type": "integer",
+          "format": "int64"
+        },
+        "higherBound": {
+          "type": "string"
+        },
+        "lowerBound": {
+          "type": "string"
+        }
+      }
+    },
     "exploreQuery": {
       "description": "MedCo-Explore query",
       "properties": {
@@ -3030,7 +3074,7 @@ func init() {
       }
     },
     "intervalBucket": {
-      "description": "Explore statistics bucket of the histogram",
+      "description": "Explore statistics encrypted bucket of the histogram",
       "type": "object",
       "required": [
         "encCount",
