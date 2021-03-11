@@ -86,7 +86,7 @@ func (q *Query) Execute() error {
 
 	conceptCode, modifierCode, cohort, timers, err := prepareArguments(q.UserID, q.CohortName, q.Concept, q.Modifier)
 	if err != nil {
-		err = fmt.Errorf("while retrieving concept codes and patient indices: %s", err.Error())
+		err = fmt.Errorf("while retrieving concept codes and patient indices: for concept %s ... %s ", q.Concept, err.Error())
 		return err
 	}
 	q.Result.Timers.AddTimers("", timer, timers)
@@ -335,6 +335,8 @@ func prepareArguments(
 		err = fmt.Errorf("while retrieving concept code: %s", err.Error())
 		return
 	}
+
+	logrus.Info("Got concept code for concept ", concept, " code = ", conceptCode)
 
 	if modifier == nil {
 		modifierCode = "@"

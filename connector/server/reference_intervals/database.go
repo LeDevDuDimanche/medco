@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	utilserver "github.com/ldsec/medco/connector/util/server"
+	"github.com/sirupsen/logrus"
 )
 
 //QueryResult contains the information about a row that comes out from the query executed in RetrievePatients.
@@ -17,6 +18,9 @@ type QueryResult struct {
 //RetrieveObservations returns the numerical values that correspond to the concept or modifier passed as argument for the specified cohort.
 func RetrieveObservations(conceptCode string, modifierCode string, patients []int64) (queryResults []QueryResult, err error) {
 	strPatientList := utilserver.ConvertIntListToString(patients)
+
+	logrus.Info("About to execute explore stats SQL query ", sql, " ", conceptCode, " ", modifierCode, " ", strPatientList)
+
 	rows, err := utilserver.I2B2DBConnection.Query(sql, conceptCode, modifierCode, strPatientList)
 	if err != nil {
 		err = fmt.Errorf("while execution SQL query: %s", err.Error())
@@ -35,6 +39,9 @@ func RetrieveObservations(conceptCode string, modifierCode string, patients []in
 			err = fmt.Errorf("while scanning SQL record: %s", err.Error())
 			return
 		}
+
+		//TODO remove this
+		logrus.Info("Scanned numerical values explore stats ", numericValue, " ", patientNb, " ", units)
 
 		var queryResult QueryResult
 

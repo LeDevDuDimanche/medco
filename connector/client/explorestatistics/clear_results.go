@@ -2,10 +2,10 @@ package explorestatisticsclient
 
 import "github.com/ldsec/medco/connector/restapi/models"
 
-// ClearResults holds all needed information to create an histogram, in clear text.
-// EncryptedResults is the mirror structure of ClearResults, before the decryption.
-// ClearResults implements sort.Interface interface.
-type ClearResults struct {
+// NodeClearResults holds all needed information to create an histogram, in clear text.
+// EncryptedResults is the mirror structure of NodeClearResults, before the decryption.
+// NodeClearResults implements sort.Interface interface.
+type NodeClearResults struct {
 	Intervals []*models.ClearInterval
 	Unit      string
 }

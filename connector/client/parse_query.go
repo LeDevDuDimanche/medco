@@ -154,8 +154,8 @@ func ParseQueryItem(queryItem string) (items []*models.PanelItemsItems0, err err
 
 		if len(contentFieldFields) == 3 { // there is a modifier field
 			modifier := &models.PanelItemsItems0Modifier{
-				AppliedPath: &contentFieldFields[2],
 				ModifierKey: &contentFieldFields[1],
+				AppliedPath: &contentFieldFields[2],
 			}
 
 			item.Modifier = modifier

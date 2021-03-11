@@ -23,6 +23,8 @@ func (exploreStatistics *ExploreStatistics) submitToNode(nodeIdx int) (results *
 		NumberOfBuckets: exploreStatistics.nbBuckets,
 	}
 
+	logrus.Info("Submitting to node with index ", nodeIdx, " the query with body ", body)
+
 	params.SetBody(body)
 	response, err := exploreStatistics.httpMedCoClients[nodeIdx].ExploreStatistics.ExploreStatistics(params, httptransport.BearerToken(exploreStatistics.authToken))
 

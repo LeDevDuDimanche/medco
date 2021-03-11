@@ -1,4 +1,4 @@
-// package explorestatisticsclient
+package explorestatisticsclient
 
 // import (
 // 	"testing"

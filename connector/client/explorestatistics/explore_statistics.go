@@ -14,7 +14,6 @@ import (
 	utilclient "github.com/ldsec/medco/connector/util/client"
 
 	"github.com/ldsec/medco/connector/restapi/client/explore_statistics"
-	"github.com/ldsec/medco/connector/restapi/models"
 
 	httptransport "github.com/go-openapi/runtime/client"
 	"github.com/go-openapi/strfmt"
@@ -113,15 +112,15 @@ type NodeResult struct {
 }
 
 //Execute makes a call to the API that handle explore statistics requests,
-func (exploreStatistics *ExploreStatistics) Execute() (results []*EncryptedResults, timers []models.Timers, err error) {
+func (exploreStatistics *ExploreStatistics) Execute() (results []*EncryptedResults, err error) {
 
-	var nOfNodes = len(exploreStatistics.httpMedCoClients)
+	var nbOfNodes = len(exploreStatistics.httpMedCoClients)
 	errChan := make(chan error)
-	resultChan := make(chan NodeResult, nOfNodes)
-	results = make([]*EncryptedResults, nOfNodes)
-	logrus.Infof("There are %d nodes", nOfNodes)
+	resultChan := make(chan NodeResult, nbOfNodes)
+	results = make([]*EncryptedResults, nbOfNodes)
+	logrus.Infof("There are %d nodes", nbOfNodes)
 
-	for idx := 0; idx < nOfNodes; idx++ {
+	for idx := 0; idx < nbOfNodes; idx++ {
 
 		go func(idx int) {
 			logrus.Infof("Submitting to node %d", idx)
@@ -129,14 +128,14 @@ func (exploreStatistics *ExploreStatistics) Execute() (results []*EncryptedResul
 			if Error != nil {
 				logrus.Errorf("Explore statistics execution error : %s", Error)
 				errChan <- Error
-			} else {
-
-				resultChan <- NodeResult{Body: res, NodeIndex: idx}
+				return
 			}
+
+			resultChan <- NodeResult{Body: res, NodeIndex: idx}
 		}(idx)
 	}
 	timeout := time.After(time.Duration(utilclient.ExploreStatisticsTimeoutSeconds) * time.Second)
-	for idx := 0; idx < nOfNodes; idx++ {
+	for idx := 0; idx < nbOfNodes; idx++ {
 		select {
 		case err = <-errChan:
 			return
@@ -148,7 +147,8 @@ func (exploreStatistics *ExploreStatistics) Execute() (results []*EncryptedResul
 			encryptedResult := new(EncryptedResults)
 			encryptedResult.Intervals = nodeRes.Body.Intervals
 			encryptedResult.Unit = nodeRes.Body.Unit
-			results = append(results, encryptedResult)
+			encryptedResult.Timers = medcomodels.NewTimersFromAPIModel(nodeRes.Body.Timers)
+			results[idx] = encryptedResult
 			logrus.Infof("Node %d successfully fetched explore statistics data", idx)
 		}
 	}

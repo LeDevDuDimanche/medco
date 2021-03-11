@@ -2,7 +2,6 @@ package explorestatisticsclient
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -24,7 +23,7 @@ type ClientResultElement struct {
 }
 
 // ExecuteClientExploreStatistics creates an explore statistics form parameters, and makes a call to the API to executes this query
-func ExecuteClientExploreStatistics(token, username, password, conceptItem, cohortName string, nbBuckets int64, disableTLSCheck bool) (err error) {
+func ExecuteClientExploreStatistics(token, username, password, conceptItem, cohortName string, nbBuckets int64, disableTLSCheck bool, resultFile, timersFile string) (err error) {
 
 	err = inputValidation(cohortName, conceptItem)
 	if err != nil {
@@ -110,7 +109,10 @@ func ExecuteClientExploreStatistics(token, username, password, conceptItem, coho
 
 	// --- execute query
 	timer := time.Now()
-	logrus.Info("executing query")
+	logrus.Info("CLI executing explore stats query #buckets ", parameters.nbBuckets, " cohort name", parameters.CohortName, " ", parameters.ConceptPath, " ")
+	if parameters.Modifier != nil {
+		logrus.Info("ClI parameters modifier ", parameters.Modifier.AppliedPath, " ", parameters.Modifier.ModifierKey)
+	}
 	results, userPrivateKey, err := executeQuery(accessToken, parameters, disableTLSCheck)
 	if err != nil {
 		err = fmt.Errorf("while executing explore statistics results: %s", err.Error())
@@ -125,7 +127,8 @@ func ExecuteClientExploreStatistics(token, username, password, conceptItem, coho
 	// --- decrypt result
 	timer = time.Now()
 	logrus.Info("decrypting results")
-	clearResults := make([]*ClearResults, len(results))
+	clearResults := make([]*NodeClearResults, len(results))
+	var nodesTimers []medcomodels.Timers = make([]medcomodels.Timers, len(results))
 	for idx, encryptedResults := range results {
 		clearResults[idx], err = encryptedResults.Decrypt(userPrivateKey)
 		if err != nil {
@@ -133,24 +136,23 @@ func ExecuteClientExploreStatistics(token, username, password, conceptItem, coho
 			logrus.Error(err)
 			return
 		}
+
+		nodesTimers[idx] = encryptedResults.Timers
 	}
 	clientTimers.AddTimers("medco-connector-decryptions", timer, nil)
 	logrus.Info("results decrypted")
 	logrus.Tracef("clear results: %+v", clearResults)
 
 	// --- printing results
-	printResults(clearResults, timers, clientTimers, parameters.TimeResolution, resultFile, timerFile)
+	printResults(clearResults, nodesTimers, clientTimers, resultFile, timersFile)
 
 	logrus.Info("Operation completed")
 	return
 
 }
 
-func executeQuery(accessToken string, parameters *Parameters, disableTLSCheck bool) (results []EncryptedResults, userPrivateKey string, err error) {
-	errChan := make(chan error)
-	resultChan := make(chan struct {
-		Results []NodeResult
-	})
+func executeQuery(accessToken string, parameters *Parameters, disableTLSCheck bool) (results []*EncryptedResults, userPrivateKey string, err error) {
+
 	var APIModifier *explore_statistics.ExploreStatisticsParamsBodyModifier
 
 	if mod := parameters.Modifier; mod != nil {
@@ -176,6 +178,11 @@ func executeQuery(accessToken string, parameters *Parameters, disableTLSCheck bo
 		return
 	}
 
+	errChan := make(chan error)
+	resultChan := make(chan struct {
+		Results []*EncryptedResults
+	})
+
 	resTimeout := time.After(time.Duration(utilclient.ExploreStatisticsTimeoutSeconds) * time.Second)
 	resultTicks := time.Tick(time.Duration(utilclient.WaitTickSeconds) * time.Second)
 	go func() {
@@ -186,7 +193,7 @@ func executeQuery(accessToken string, parameters *Parameters, disableTLSCheck bo
 			return
 		}
 		resultChan <- struct {
-			Results []NodeResult
+			Results []*EncryptedResults
 		}{Results: results}
 		return
 
@@ -215,7 +222,7 @@ resLoop:
 
 }
 
-func printResults(clearResults []ClearResults, timers []medcomodels.Timers, clientTimers medcomodels.Timers, timeResolution, resultFile, timerFile string) (err error) {
+func printResults(nodesClearResults []*NodeClearResults, nodesTimers []medcomodels.Timers, clientTimers medcomodels.Timers, resultFile, timerFile string) (err error) {
 	logrus.Info("printing results")
 	csv, err := utilclient.NewCSV(resultFile)
 	if err != nil {
@@ -223,33 +230,24 @@ func printResults(clearResults []ClearResults, timers []medcomodels.Timers, clie
 		logrus.Error(err)
 		return
 	}
-	err = csv.Write([]string{"time_granularity", "node_index", "group_id", "initial_count", "time_point", "event_of_interest_count", "censoring_event_count"})
+	err = csv.Write([]string{"lower bound", "higher bound", "count", "nodeIndex"})
 	if err != nil {
 		err = fmt.Errorf("while writing result headers:%s", err.Error())
 		logrus.Error(err)
 		return
 	}
-	for nodeIdx := range clearResults {
-		sort.Sort(clearResults[nodeIdx])
-		for groupIdx := range clearResults[nodeIdx] {
-
-			sort.Sort(clearResults[nodeIdx][groupIdx].TimePoints)
-			var group = clearResults[nodeIdx][groupIdx]
-			for _, timePoint := range group.TimePoints {
-				csv.Write([]string{
-					timeResolution,
-					strconv.Itoa(nodeIdx),
-					group.GroupID,
-					strconv.FormatInt(group.InitialCount, 10),
-					strconv.Itoa(timePoint.Time),
-					strconv.FormatInt(timePoint.Events.EventsOfInterest, 10),
-					strconv.FormatInt(timePoint.Events.CensoringEvents, 10),
-				})
-				if err != nil {
-					err = fmt.Errorf("while writing a record: %s", err.Error())
-					logrus.Error(err)
-					return
-				}
+	for nodeIdx, nodeClearResults := range nodesClearResults {
+		for _, clearResult := range nodeClearResults.Intervals {
+			csv.Write([]string{
+				*clearResult.LowerBound,
+				*clearResult.HigherBound,
+				strconv.FormatInt(*clearResult.Count, 10),
+				strconv.Itoa(nodeIdx),
+			})
+			if err != nil {
+				err = fmt.Errorf("while writing a record: %s", err.Error())
+				logrus.Error(err)
+				return
 			}
 
 		}
@@ -285,13 +283,12 @@ func printResults(clearResults []ClearResults, timers []medcomodels.Timers, clie
 		return
 	}
 	// each remote time profilings
-	for nodeIdx, nodeTimers := range timers {
-		sortedTimers := nodeTimers.SortTimers()
-		for _, duration := range sortedTimers {
+	for nodeIdx, nodeTimers := range nodesTimers {
+		for key, duration := range nodeTimers {
 			dumpCSV.Write([]string{
 				strconv.Itoa(nodeIdx),
-				duration[0],
-				duration[1],
+				key,
+				duration.String(),
 			})
 			if err != nil {
 				err = fmt.Errorf("while writing record for timer file: %s", err)

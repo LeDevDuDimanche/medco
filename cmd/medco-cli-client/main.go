@@ -79,6 +79,19 @@ func main() {
 			Usage: "Return encrypted variant id",
 		},
 	}
+	//--- explore statistics command flags
+	exploreStatsFlags := []cli.Flag{
+		cli.StringFlag{
+			Name:  "dumpFile, d",
+			Usage: "Output file for the timers CSV. Printed to stdout if omitted.",
+			Value: "",
+		},
+		cli.IntFlag{
+			Name:  "nbBuckets, b",
+			Usage: "Output file for the timers CSV. Printed to stdout if omitted.",
+		},
+		// this is supposed to be a required argument, but we need -1 for testing, and -1 is not possible to pass as an argument here
+	}
 	//--- survival analysis command flags
 	survivalAnalysisFlag := []cli.Flag{
 		cli.StringFlag{
@@ -169,8 +182,9 @@ func main() {
 		{
 			Name:      "explore-stats",
 			Aliases:   []string{"exp-s"},
+			Flags:     exploreStatsFlags,
 			Usage:     "Get the histogram of the number of observations about a concept (or modifier) in the context of the selected cohort",
-			ArgsUsage: "conceptPath cohortName nbBuckets",
+			ArgsUsage: "conceptPath cohortName -b nbBuckets [-d dumpfile]",
 			Action: func(c *cli.Context) error {
 				return explorestatisticsclient.ExecuteClientExploreStatistics(
 					c.GlobalString("token"),
@@ -180,6 +194,8 @@ func main() {
 					c.Args().Get(1),
 					c.Int64("nbBuckets"),
 					c.GlobalBool("disableTLSCheck"),
+					c.GlobalString("outputFile"),
+					c.String("dumpFile"),
 				)
 			},
 		},

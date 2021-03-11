@@ -1,6 +1,7 @@
 package explorestatisticsclient
 
 import (
+	medcomodels "github.com/ldsec/medco/connector/models"
 	"github.com/ldsec/medco/connector/restapi/models"
 	"github.com/ldsec/medco/connector/wrappers/unlynx"
 )
@@ -10,10 +11,11 @@ import (
 type EncryptedResults struct {
 	Intervals []*models.IntervalBucket
 	Unit      string
+	Timers    medcomodels.Timers
 }
 
 // Decrypt deciphers initial counts, numbers of censoring events and events of interest with the provided key
-func (nodeResults EncryptedResults) Decrypt(privateKey string) (*ClearResults, error) {
+func (nodeResults EncryptedResults) Decrypt(privateKey string) (*NodeClearResults, error) {
 	clrIntervals := make([]*models.ClearInterval, len(nodeResults.Intervals))
 	for idxInterval, encInterval := range nodeResults.Intervals {
 		count, err := unlynx.Decrypt(*encInterval.EncCount, privateKey)
@@ -28,7 +30,7 @@ func (nodeResults EncryptedResults) Decrypt(privateKey string) (*ClearResults, e
 		clrIntervals[idxInterval] = &clrInterval
 	}
 
-	clrResults := new(ClearResults)
+	clrResults := new(NodeClearResults)
 	clrResults.Intervals = clrIntervals
 	clrResults.Unit = nodeResults.Unit
 	return clrResults, nil
