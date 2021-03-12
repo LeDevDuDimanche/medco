@@ -276,7 +276,7 @@ func printResults(nodesClearResults []*NodeClearResults, nodesTimers []medcomode
 		logrus.Error(err)
 		return
 	}
-	dumpCSV.Write([]string{"node_index", "timer_description", "duration_milliseconds"})
+	dumpCSV.Write([]string{"type", "timer_description", "duration_milliseconds"})
 	if err != nil {
 		err = fmt.Errorf("while writing headers for timer file: %s", err)
 		logrus.Error(err)
@@ -284,11 +284,12 @@ func printResults(nodesClearResults []*NodeClearResults, nodesTimers []medcomode
 	}
 	// each remote time profilings
 	for nodeIdx, nodeTimers := range nodesTimers {
-		for key, duration := range nodeTimers {
+		serverSortedTimers := nodeTimers.SortTimers()
+		for _, duration := range serverSortedTimers {
 			dumpCSV.Write([]string{
-				strconv.Itoa(nodeIdx),
-				key,
-				duration.String(),
+				"server" + strconv.Itoa(nodeIdx),
+				duration[0], //description
+				duration[1], //duration in ms
 			})
 			if err != nil {
 				err = fmt.Errorf("while writing record for timer file: %s", err)
@@ -303,8 +304,8 @@ func printResults(nodesClearResults []*NodeClearResults, nodesTimers []medcomode
 	for _, duration := range localSortedTimers {
 		dumpCSV.Write([]string{
 			"client",
-			duration[0],
-			duration[1],
+			duration[0], //description
+			duration[1], //duration in ms
 		})
 		if err != nil {
 			err = fmt.Errorf("while writing record for timer file: %s", err)
